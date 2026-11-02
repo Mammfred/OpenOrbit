@@ -2890,5 +2890,11 @@
 "Uridium you earn, minus the shop price of the ammo you fire, as an hourly rate.": "Kazanılan uridyum, eksi ateşlenen merminin mağaza fiyatı, saate vurulmuş.",
 "Gross uridium/hour": "Brüt uridyum/saat",
 "Ammo U/hour": "Cephane U/saat",
-"Ammo C/hour": "Cephane C/saat"
+"Ammo C/hour": "Cephane C/saat",
+"Smarter play": "Akıllı oyun",
+"On: bots pick the map and ammo by net uridium, buy Iris and lasers before hoarding, and fight by the situation. Off: the old behavior.": "Açıkken botlar haritayı ve cephaneyi net uridyuma göre seçer, yığmadan önce Iris ve lazer alır, duruma göre savaşır. Kapalıyken eski davranış.",
+"Top bots from your save": "Sana yakın tepe",
+"When on, the top slice of the roster is built from the ship, lasers, generators, drones and level in your save. When off, everyone is generated as before. Applied when the pack is created or the roster is regenerated; later ship changes do not follow.": "Açıkken kadronun üst dilimi senin kayıtındaki gemi, lazer, jeneratör, dron ve seviyeye göre kurulur. Kapalıyken herkes eskisi gibi üretilir. Paket oluşturulunca ya da kadro baştan üretilince uygulanır; sonra gemini değiştirsen bu botlar peşinden gelmez.",
+"Top slice (%)": "Tepe dilimi (%)",
+"This share of the roster is built close to you. Most match you, a few are a step ahead, a few a step behind. The rest do not change.": "Kadroda bu kadar bot sana yakın kurulur. Çoğu seninle başa baş, birkaçı bir adım iyi, birkaçı bir adım geride. Geri kalanı hiç değişmez."
 }

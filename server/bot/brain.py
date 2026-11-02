@@ -99,11 +99,20 @@ def map_candidates(bot, value, y=None):
         owner = K.H.company(m)
         if owner and owner != company and not foreign:
             continue
-        r = K.evaluate_map(m, value['dps'], value['ehp'], courage)
+        from . import smart as SM
+        if SM.enabled(bot):
+            net_u, _ammo, r = SM.map_net(bot, m, value, courage)
+        else:
+            net_u = None
+            r = K.evaluate_map(m, value['dps'], value['ehp'], courage)
         if not r['targets']:
             continue
-        earnings = (r['ep_per_hour'] * (0.6 + o['ambition']) / 10.0 + r['credits_per_hour'] * (0.5 + o['frugality']) / 10.0
-                  + r['uridium_per_hour'] * 25.0 + r['honor_per_hour'] * 5.0)
+        if net_u is None:
+            earnings = (r['ep_per_hour'] * (0.6 + o['ambition']) / 10.0 + r['credits_per_hour'] * (0.5 + o['frugality']) / 10.0
+                      + r['uridium_per_hour'] * 25.0 + r['honor_per_hour'] * 5.0)
+        else:
+            earnings = (r['ep_per_hour'] * (0.6 + o['ambition']) / 10.0 + r['credits_per_hour'] * (0.5 + o['frugality']) / 10.0
+                      + net_u * 40.0 + r['honor_per_hour'] * 5.0)
         risk = r['deaths_per_hour'] * (1.6 - o['risk']) * 0.35
         route = K.route(bot.game_map, m, company, lv)
         if route is None:
@@ -126,6 +135,8 @@ def decision(bot, y, now=None):
     now = now or time.time()
     from . import weapons as WP, skylab as SK, appearance as GR
     WP.resupply(bot)                                   # buys when ammo and rockets run low (like a player, between jobs)
+    from . import skill_build as SB
+    SB.spend(bot)                                      # skill tree, if there are points or log disks
     SK.invest(bot, now)
     GR.shopping(bot, now)                          # ship design and drone formation (by showiness and money)                            # upgrades Skylab (if money and resources allow)
     from . import technology as TECH

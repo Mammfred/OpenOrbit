@@ -17,6 +17,39 @@ D = json.load(open(os.path.join(K.HERE, 'data', 'gates.json'), encoding='utf8'))
 GATES = D['gates']
 ABG = ('alpha', 'beta', 'gamma')
 ORDER = ('alpha', 'beta', 'gamma', 'lambda', 'hades', 'delta', 'epsilon', 'kappa', 'zeta', 'streuner')
+
+
+def _sources():
+    """Chance-table item -> gates. A first-clear guarantee and a higher probability come first."""
+    found = {}
+    for key, gate in GATES.items():
+        reward = gate.get('reward') or {}
+        if not isinstance(reward, dict):
+            continue
+        for row in reward.get('chance') or []:
+            loot = row.get('item')
+            if not loot or not isinstance(loot, str):
+                continue
+            found.setdefault(loot, []).append((0 if row.get('first_guaranteed') else 1, -float(row.get('probability') or 0), key))
+    out = {}
+    for loot, rows in found.items():
+        rows.sort()
+        seen = []
+        for row in rows:
+            if row[2] not in seen:
+                seen.append(row[2])
+        out[loot] = tuple(seen)
+    return out
+
+
+SOURCE = None
+
+
+def sources():
+    global SOURCE
+    if SOURCE is None:
+        SOURCE = _sources()
+    return SOURCE
 ENERGY = 'resource_extra-energy'
 PROBABILITY = {c: w for c, w in D['probability']}            # 1 ammo, 2 resource, 3 voucher, 4 part, 5 special, 6 log
 _difficulty = {}
@@ -124,20 +157,44 @@ def _draw(bot, st, gate):
         stock(bot)['resource_logfile'] = stock(bot).get('resource_logfile', 0) + 1
 
 
+def wanted_gate(bot):
+    """If the preferred design is not in the shop and the set is short, the gate the bot can clear.
+    If it is for sale, None: it is bought and the gate order does not change."""
+    from . import appearance as AP
+    if not bot.permission.get('gate', True) or AP.drone_count(bot) < 1:
+        return None
+    AP.place_designs(bot)
+    loot = AP.drone_preference(bot)
+    if K.price(loot) or AP.designs_missing(bot, loot) <= 0:
+        return None
+    for key in sources().get(loot) or ():
+        gate = GATES.get(key)
+        if not gate or gate.get('not_producible'):
+            continue
+        if estimate(bot, key)[1] < gate['hp']:
+            return key
+    return None
+
+
 def target_gate(bot):
-    """The gate to collect parts for: not built and the first gate the bot can probably pass (players' order: ABG, then the others)."""
+    """The gate to collect parts for. A design gate (if the bot can clear it) jumps the queue; otherwise the players' order."""
     st = state(bot)
-    for k in ORDER:
+    priority = wanted_gate(bot)
+    order = ((priority,) + ORDER) if priority else ORDER
+    seen = set()
+    for k in order:
+        if not k or k in seen:
+            continue
+        seen.add(k)
         if k in st['built'] or GATES[k].get('not_producible'):
             continue
-        duration, death = estimate(bot, k)
-        if death < GATES[k]['hp'] * 1.5:
+        if estimate(bot, k)[1] < GATES[k]['hp'] * 1.5:
             return k
     return None
 
 
 def generator(bot):
-    """At decision time: spins if it has energy; a quester and a rich bot also with uridium (permission 'kapi', from level 10)."""
+    """At decision time: spins if it has energy; a quester and a rich bot also with uridium (permission 'gate', from level 10)."""
     if not bot.permission.get('gate', True) or bot.level < 10:
         return 0
     k = target_gate(bot)
@@ -145,8 +202,15 @@ def generator(bot):
         return 0
     n = stock(bot).get(ENERGY, 0)
     t = bot.o('frugality')
-    if bot.o('ambition') + bot.o('rivalry') > 1.1 and bot.k['uridium'] > D['energy_price'] * 300 * (1 + 2 * t):
-        n += int(bot.k['uridium'] * 0.15 // D['energy_price'])
+    price = D['energy_price']
+    if bot.o('ambition') + bot.o('rivalry') > 1.1 and bot.k['uridium'] > price * 300 * (1 + 2 * t):
+        n += int(bot.k['uridium'] * 0.15 // price)
+    elif wanted_gate(bot) == k:
+        # a cautious bot also spins for the set; it keeps an ammo purse, at most 40 spins per decision
+        spare = price * (40 + 100 * t)
+        extra = bot.k['uridium'] - spare
+        if extra > price * 10:
+            n += int(min(extra * 0.2, price * 40) // price)
     return draw(bot, k, min(n, 200)) if n else 0
 
 
@@ -179,10 +243,7 @@ def grant_reward(bot, gate, speed=1.0):
         if n:
             s[loot] = s.get(loot, 0) + n
     st = state(bot)
-    for c in o.get('chance') or ():                  # the gate's laser chance (LF-4: Epsilon first run sure, Kappa, Hades): the bots' only source of
-        loot = c.get('item', '')                     # lasers above the shop's LF-3 (player report 2026-11-02: rich generals with weak lasers)
-        if loot in K.ITEMS['lasers'] and (c.get('first_guaranteed') and gate not in st.get('done', ()) or random.random() < c.get('probability', 0)):
-            bot.add(loot, c.get('count', 1))
+    _chance(bot, o.get('chance'), gate not in st.get('done', []))
     if gate != 'kronos':
         st['kronos'] = min(GATES['kronos']['part'], st['kronos'] + 1)
         if st['kronos'] >= GATES['kronos']['part'] and 'kronos' not in st['built']:
@@ -201,10 +262,44 @@ def record_duration(save, key, sec):
     return d
 
 
+def _chance_count(bot, row):
+    a = int(row.get('count') or 1)
+    b = row.get('max_count')
+    return bot.r.randint(a, int(b)) if b else a
+
+
+def _chance(bot, rows, first):
+    """The player's gate chance (world finish): one item from a single spin, the others each on their own.
+    A first-clear guarantee drops. A design goes to stock and is not mixed into another set."""
+    import settings as SET
+    rows = [s for s in rows or [] if isinstance(s, dict) and s.get('item')]
+    single = [s for s in rows if s.get('single_spin')]
+    roll, pick = bot.r.random(), None
+    for s in single:
+        roll -= SET.chance('drop', float(s.get('probability') or 0), 'gate')
+        if roll < 0:
+            pick = s
+            break
+    for s in rows:
+        if s.get('single_spin'):
+            hit = s is pick
+        else:
+            p = SET.chance('drop', float(s.get('probability') or 0), 'gate')
+            hit = bool(first and s.get('first_guaranteed')) or bot.r.random() < p
+        if not hit or s.get('item') in ('gem_pack', 'ore_pack'):
+            continue
+        loot = bot.r.choice(s['options']) if s.get('item') == 'design_choice' and s.get('options') else s['item']
+        if loot:
+            bot.add(loot, _chance_count(bot, s))
+
+
 def can_run(bot):
-    """A built and passable gate or None."""
+    """A built and passable gate or None. The gate of an unfinished set, if it is built, jumps the queue."""
     st = state(bot)
-    for k in st['built']:
+    priority = wanted_gate(bot)
+    order = [priority] if priority and priority in st['built'] else []
+    order.extend(k for k in st['built'] if k not in order)
+    for k in order:
         if estimate(bot, k)[1] < GATES[k]['hp']:
             return k
     return None
