@@ -2879,5 +2879,16 @@
 "{0}d {1}h": "{0} T {1} Std.",
 "{0}h {1}m": "{0} Std. {1} Min.",
 "{1} min left for {0}.": "Noch {1} Min. für {0}.",
-"★ rolled more often in the game": "★ im Spiel häufiger gezogen"
+"★ rolled more often in the game": "★ im Spiel häufiger gezogen",
+"Net uridium builds up here once the game is open: uridium you earn, minus the shop price of the ammo you fire.": "Netto-Uridium sammelt sich hier, sobald das Spiel offen ist: verdientes Uridium minus der Shop-Preis der verschossenen Munition.",
+"not in the shop": "nicht im Shop",
+"This session {0}: {1} U earned, ammo {2} U and {3} C.": "Diese Sitzung {0}: {1} U verdient, Munition {2} U und {3} C.",
+"Ammo bought with credits (such as LCB-10) is not taken out of the uridium.": "Munition für Credits (wie LCB-10) wird nicht vom Uridium abgezogen.",
+"Session ended, the counter stopped.": "Sitzung beendet, der Zähler steht.",
+"First minute: the hourly number is still settling.": "Erste Minute: die Stundenzahl pendelt sich noch ein.",
+"Net uridium/hour": "Netto-Uridium/Stunde",
+"Uridium you earn, minus the shop price of the ammo you fire, as an hourly rate.": "Verdientes Uridium minus der Shop-Preis der verschossenen Munition, auf die Stunde gerechnet.",
+"Gross uridium/hour": "Brutto-Uridium/Stunde",
+"Ammo U/hour": "Munition U/Stunde",
+"Ammo C/hour": "Munition C/Stunde"
 }

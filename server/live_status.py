@@ -2,7 +2,7 @@
 (<log folder>/live_status.json); the panel (server/panel/panel.py, /api/live) reads and shows it. No separate channel is opened to the
 server; the file is written under a temporary name and moved into place, so the panel never reads a half file.
 
-Contents: connection, pilot (level, EP, credits, uridium, honor), ship (HP, shield, cargo), position (map, x, y), map
+Contents: connection, pilot (level, EP, credits, uridium, honor), net uridium per hour (uridium_rate.py), ship (HP, shield, cargo), position (map, x, y), map
 (live aliens, box and ore counts, target, in combat?, in a safe zone? station or portal, gate/wave, duration of the loop step),
 events running on the calendar, play time.
 """
@@ -52,6 +52,12 @@ def snapshot(game):
          'position': {'map': H.name(k.get('mapId')), 'map_id': k.get('mapId'), 'x': int(k.get('x', 0)), 'y': int(k.get('y', 0))},
          'events': sorted(CAL.active()), 'play_sec': int(played),
          'session_start': s.play_start if s else None}         # duration of Discord Rich Presence (panel/discord_rp.py)
+    meter = getattr(p, 'uridium_rate', None)
+    if meter is not None:
+        try:
+            d['uridium_rate'] = meter.summary()                 # net uridium per hour (the panel's Play page)
+        except Exception:
+            pass
     if w:
         try:
             x, y = w.hero_pos()

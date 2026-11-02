@@ -358,8 +358,13 @@ input[type=range]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px rg
 .hero .pilot .badge { font-size: 12.5px; padding: 3px 9px; }
 .hero .meta { display: flex; flex-wrap: wrap; gap: 8px 20px; color: var(--muted); font-size: 13px; }
 .hero .meta b { color: var(--text); font-weight: 650; }
-.hero > div:first-child, .live-sub { container-type: inline-size; }     /* resource boxes are laid out by the width of where they are */
+.hero > div:first-child, .live-sub, .live-yield { container-type: inline-size; }     /* resource boxes are laid out by the width of where they are */
 .live-sub { margin-top: 16px; }
+.live-yield { margin-top: 14px; }
+.live-yield .stats { margin-top: 0; }
+.live-yield .note { color: var(--muted); font-size: 12.5px; margin: 8px 0 0; }
+.stat .v.net { color: #7cf2c1; }
+.stat .v.ammo { color: #ff8b7a; }
 .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 20px; }
 @container (max-width: 700px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }   /* "37.740.930" does not fit in four columns */
 .stat { background: linear-gradient(180deg, rgba(5, 10, 20, .84), rgba(5, 10, 20, .72)); border: 1px solid var(--line-2); border-radius: var(--radius-sm);

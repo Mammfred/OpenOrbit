@@ -179,6 +179,9 @@ class Bot:
         k['credits'] = max(0, k['credits'] + full['credits'])
         k['uridium'] = max(0, k['uridium'] + full['uridium'])
         k['honor'] += full['honor']
+        meter = getattr(self, 'uridium_rate', None)          # net uridium per hour (uridium_rate.Meter); bots bind one if they want
+        if meter is not None and full['uridium'] > 0:
+            meter.earn(full['uridium'])
         lv = PF.level_for(k['ep'])
         if lv != k['level']:
             leveled_up = lv > k['level']

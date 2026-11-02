@@ -81,19 +81,25 @@ def rocket_dps(bot, rocket):
 
 
 def spend(bot, loot, n):
-    """Spends n units (as many as available) -> spent. Not spent if "infinite ammo" is on in the bots' game settings profile."""
+    """Spends n units (as many as available) -> spent. Not spent if "infinite ammo" is on in the bots' game settings profile.
+    If bot.uridium_rate (uridium_rate.Meter) is set, the rounds fired are written there, the same account as the player's."""
+    import uridium_rate as UR
     s = stock(bot)
     if bot.game_settings.get('infinite_ammo'):
-        return min(n, s.get(loot, 0)) if s.get(loot, 0) > 0 else 0
-    fractions = bot.__dict__.setdefault('_spend_fraction', {})
-    v = n + fractions.get(loot, 0.0)
-    fractions[loot] = v - int(v)
-    n = min(int(v), s.get(loot, 0))
-    if n > 0:
-        s[loot] -= n
-        if not s[loot]:
-            del s[loot]
-    return n
+        fired = min(n, s.get(loot, 0)) if s.get(loot, 0) > 0 else 0
+    else:
+        fractions = bot.__dict__.setdefault('_spend_fraction', {})
+        v = n + fractions.get(loot, 0.0)
+        fractions[loot] = v - int(v)
+        fired = min(int(v), s.get(loot, 0))
+        if fired > 0:
+            s[loot] -= fired
+            if not s[loot]:
+                del s[loot]
+    meter = getattr(bot, 'uridium_rate', None)
+    if meter is not None and fired and UR.counts(loot):
+        meter.fired(loot, fired)
+    return fired
 
 
 def add(bot, loot, n):
