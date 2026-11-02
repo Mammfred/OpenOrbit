@@ -126,6 +126,8 @@ class Bot:
         if self.k.get('structure'):
             from .clan_orders import LAYOUT_SHARE
             return LAYOUT_SHARE.get(self.k['structure'], 0.6)
+        if self.k.get('config_no') == 2:
+            return 0.95                                  # setup 2: shield generators
         return PS.clamp(0.85 - 0.45 * self.o('risk') * self.o('aggression') - 0.15 * (self.archetype == 'hunter'), 0.3, 0.95)
 
     def clan_savings(self):
@@ -152,6 +154,11 @@ class Bot:
         kills more slowly and takes more damage). power is the equipment itself (comparison, panel)."""
         if self._value is None:
             d = K.values(self.k['gear'], self.shield_share())
+            from . import smart as SM
+            if SM.enabled(self):
+                SM.apply_formation(self, d)
+            from . import volley as VL
+            VL.apply_value(self, d)                       # skill tree: HP, shield, absorb
             d['dps'] /= max(0.1, self.game_settings.multiplier('npc_hp', 'map'))
             d['ehp'] /= max(0.1, self.game_settings.multiplier('npc_damage', 'map'))
             self._value = d
@@ -224,6 +231,13 @@ class Bot:
             if not K.drone_room(e['drone'], loot, n):
                 return False                             # drone slots full or a second Apis/Zeus: a dropped drone goes to stock
             e['drone'][loot] = e['drone'].get(loot, 0) + n
+            self.loadout_changed()
+            from . import appearance as AP
+            AP.place_designs(self)                        # a stored set also goes on the new drone
+            return True
+        elif loot in K.ITEMS.get('drone_designs', {}) and K.ITEMS['drone_designs'][loot].get('slot') == 'design':
+            from . import appearance as AP
+            return AP.gain_design(self, loot, n)         # Havoc / Hercules: stock, no mixed set
         elif loot in K.ITEMS['combat_items']['launcher']['kinds']:
             e['launcher'] = loot                       # rocket launcher (technology.py)
         elif loot in K.ITEMS['extras'] or loot in K.ITEMS['repair_robots']:

@@ -2890,5 +2890,11 @@
 "Uridium you earn, minus the shop price of the ammo you fire, as an hourly rate.": "Uridio ganado, menos el precio en la tienda de la munición disparada, por hora.",
 "Gross uridium/hour": "Uridio bruto/hora",
 "Ammo U/hour": "Munición U/hora",
-"Ammo C/hour": "Munición C/hora"
+"Ammo C/hour": "Munición C/hora",
+"Smarter play": "Juego más listo",
+"On: bots pick the map and ammo by net uridium, buy Iris and lasers before hoarding, and fight by the situation. Off: the old behavior.": "Activado: los bots eligen mapa y munición por el uridium neto, compran Iris y láseres antes de acumular, y luchan según la situación. Desactivado: el comportamiento antiguo.",
+"Top bots from your save": "Bots punteros según tu partida",
+"When on, the top slice of the roster is built from the ship, lasers, generators, drones and level in your save. When off, everyone is generated as before. Applied when the pack is created or the roster is regenerated; later ship changes do not follow.": "Si está activo, la parte alta de la plantilla se arma con la nave, los láseres, los generadores, los drones y el nivel de tu partida. Si está apagado, todos se generan como antes. Se aplica al crear el paquete o al regenerar la plantilla; si luego cambias de nave, estos bots no te siguen.",
+"Top slice (%)": "Porción puntera (%)",
+"This share of the roster is built close to you. Most match you, a few are a step ahead, a few a step behind. The rest do not change.": "Esta parte de la plantilla se arma cerca de ti. La mayoría va a la par, unos pocos un paso por delante, unos pocos un paso por detrás. El resto no cambia."
 }

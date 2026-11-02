@@ -16,7 +16,11 @@ class GateRun(Goal):
         return bot.level >= 10 and GT.can_run(bot) is not None
 
     def points(self, bot, b):
-        return 0.9 + 0.4 * bot.o('ambition') + 0.2 * bot.o('rivalry') - 0.5 * bot.mood['fatigue']
+        p = 0.9 + 0.4 * bot.o('ambition') + 0.2 * bot.o('rivalry') - 0.5 * bot.mood['fatigue']
+        k = GT.can_run(bot)
+        if k and k == GT.wanted_gate(bot):
+            p += 1.5                               # the set is short and the gate is ready: enter before grinding
+        return p
 
     def start(self, bot, b):
         k = GT.can_run(bot)

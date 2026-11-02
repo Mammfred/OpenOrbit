@@ -71,9 +71,104 @@ def drone_ids(bot):
     return out
 
 
+HAVOC, HERCULES = 'drone_designs_havoc', 'drone_designs_hercules'
+
+
 def drone_preference(bot):
-    """Drone design with a bonus: Havoc for aggressive, Hercules for cautious."""
-    return 'drone_designs_havoc' if bot.o('aggression') >= 0.5 else 'drone_designs_hercules'
+    """One set: hunters and aggressive pilots want Havoc (+10% drone lasers when every drone matches).
+    Cautious pilots want Hercules (+20% HP, same rule). A mix cancels the set bonus."""
+    if bot.archetype == 'hunter' or bot.o('aggression') >= 0.62:
+        return HAVOC
+    if bot.o('risk') < 0.4 or bot.o('aggression') < 0.45:
+        return HERCULES
+    return HAVOC if bot.o('aggression') >= 0.5 else HERCULES
+
+
+def design_stock(bot):
+    """Bonus designs not worn yet {loot: count}."""
+    stock = bot.k.get('design_stock')
+    if not isinstance(stock, dict):
+        stock = {}
+        bot.k['design_stock'] = stock
+    return stock
+
+
+def design_list(bot):
+    """Worn designs, one per drone (a short list is padded with empty slots)."""
+    n = len(drone_sequence(bot))
+    dt = bot.k['gear'].setdefault('drone_design', {})
+    designs, looks = dt.setdefault('design', []), dt.setdefault('appearance', [])
+    designs += [''] * (n - len(designs))
+    looks += [''] * (n - len(looks))
+    del designs[n:], looks[n:]
+    return designs
+
+
+def designs_owned(bot, loot):
+    return design_stock(bot).get(loot, 0) + sum(1 for t in design_list(bot) if t == loot)
+
+
+def place_designs(bot):
+    """Wear from stock. Empty slots fill with the preferred design. A different set is not mixed in;
+    when enough of the preferred one is owned, every drone switches at once."""
+    n = len(drone_sequence(bot))
+    if not n:
+        return False
+    wanted = drone_preference(bot)
+    worn = design_list(bot)
+    if all(t == wanted for t in worn):
+        return False
+    stock = design_stock(bot)
+    other = any(t and t != wanted for t in worn)
+    owned = stock.get(wanted, 0) + sum(1 for t in worn if t == wanted)
+    if other:
+        if owned < n:
+            return False
+        for t in worn:
+            if t and t != wanted:
+                stock[t] = stock.get(t, 0) + 1
+        left = owned - n
+        if left > 0:
+            stock[wanted] = left
+        else:
+            stock.pop(wanted, None)
+        for i in range(n):
+            worn[i] = wanted
+        bot.loadout_changed()
+        return True
+    if not stock.get(wanted):
+        return False
+    changed = False
+    for i in range(n):
+        if worn[i] or stock.get(wanted, 0) <= 0:
+            continue
+        worn[i] = wanted
+        stock[wanted] -= 1
+        changed = True
+    if stock.get(wanted, 0) <= 0:
+        stock.pop(wanted, None)
+    if changed:
+        bot.loadout_changed()
+    return changed
+
+
+def designs_missing(bot, loot=None):
+    """How many more of the preferred design are needed to cover every drone. Stock is worn first."""
+    place_designs(bot)
+    loot = loot or drone_preference(bot)
+    n = len(drone_sequence(bot))
+    return max(0, n - designs_owned(bot, loot)) if n else 0
+
+
+def gain_design(bot, loot, n=1):
+    """A bonus design arrived (gate or shop): it goes to stock and is worn without mixing."""
+    designs = K.ITEMS['drone_designs']
+    if loot not in designs or designs[loot].get('slot') != 'design' or n < 1:
+        return False
+    stock = design_stock(bot)
+    stock[loot] = stock.get(loot, 0) + int(n)
+    place_designs(bot)
+    return True
 
 
 def drone_looks():
@@ -94,20 +189,17 @@ def drone_shopping(bot):
     del designs[n:], looks[n:]
     designs += [''] * (n - len(designs))
     looks += [''] * (n - len(looks))
-    ist = drone_preference(bot)
-    mixed = _stable_hash(bot, 'drone') % 3 == 0
-    order = [ist] + ([x for x in ('drone_designs_havoc', 'drone_designs_hercules') if x != ist] if mixed else [])
-    for i in range(n):
-        if designs[i]:
-            continue
-        for loot in order:
-            f = K.price(loot)
-            if f and _can_afford(bot, *f) and bot.pay(*f):
-                designs[i] = loot
-                bot.event('new_design', item=loot)
-                bot.loadout_changed()
-                return True
-        break                                            # not enough money: the next drone waits, move on to cosmetics
+    from . import smart as SM
+    place_designs(bot)
+    if not SM.enabled(bot):
+        # Smarter play buys the set from shopping.purchase. No shop price (World Editor removed it): the gate collects it.
+        # A mix is never worn: the set bonus needs every drone to match.
+        wanted = drone_preference(bot)
+        f = K.price(wanted)
+        purse = 'uridium' if f and f[0] == 'U' else 'credits'
+        while f and designs_missing(bot, wanted) > 0 and bot.k[purse] >= f[1] * 1.35 and bot.pay(*f):
+            gain_design(bot, wanted)
+            bot.event('new_design', item=wanted)
     option = drone_looks()
     if not option or '' not in looks:
         return False

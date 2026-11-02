@@ -2890,5 +2890,11 @@
 "Uridium you earn, minus the shop price of the ammo you fire, as an hourly rate.": "Заработанное уридиум минус цена в магазине выпущенных боеприпасов, в час.",
 "Gross uridium/hour": "Валовое уридиум/час",
 "Ammo U/hour": "Боеприпасы U/час",
-"Ammo C/hour": "Боеприпасы C/час"
+"Ammo C/hour": "Боеприпасы C/час",
+"Smarter play": "Более умная игра",
+"On: bots pick the map and ammo by net uridium, buy Iris and lasers before hoarding, and fight by the situation. Off: the old behavior.": "Вкл.: боты выбирают карту и боеприпасы по чистому уридиуму, покупают Iris и лазеры до накопления и дерутся по ситуации. Выкл.: старое поведение.",
+"Top bots from your save": "Топ-боты по твоему сохранению",
+"When on, the top slice of the roster is built from the ship, lasers, generators, drones and level in your save. When off, everyone is generated as before. Applied when the pack is created or the roster is regenerated; later ship changes do not follow.": "Вкл.: верхний срез состава собирается из корабля, лазеров, генераторов, дронов и уровня твоего сохранения. Выкл.: все создаются как раньше. Применяется при создании пакета или пересоздании состава; смена корабля потом за ними не тянется.",
+"Top slice (%)": "Доля топа (%)",
+"This share of the roster is built close to you. Most match you, a few are a step ahead, a few a step behind. The rest do not change.": "Такая доля состава собирается близко к тебе. Большинство наравне, несколько на шаг лучше, несколько на шаг слабее. Остальные не меняются."
 }

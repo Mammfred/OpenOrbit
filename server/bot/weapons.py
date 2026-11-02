@@ -34,8 +34,11 @@ def multiplier(loot):
     return K.ITEMS['laser_ammo'].get(loot, {}).get('multiplier', 1)
 
 
-def pick_laser(bot, ehp=0.0, pvp=False):
+def pick_laser(bot, ehp=0.0, pvp=False, shield=0.0, own=1.0):
     """Which laser ammo (in stock) for this target -> loot or None (no rounds at all)."""
+    from . import smart as SM
+    if SM.enabled(bot):
+        return SM.laser(bot, ehp, pvp, shield, own)
     s = stock(bot)
     special = bot.permission.get('custom_ammunition', True)
     frugal = bot.o('frugality')
@@ -57,7 +60,10 @@ def pick_laser(bot, ehp=0.0, pvp=False):
     return next((c for c in (MCB25, MCB50, UCB, RSB) if s.get(c, 0) > 0), None)      # SAB-50 does not hit the hull: only the shield in PvP
 
 
-def pick_rocket(bot):
+def pick_rocket(bot, pvp=False):
+    from . import smart as SM
+    if SM.enabled(bot):
+        return SM.rocket(bot, pvp)
     if not bot.permission.get('rocket', True):
         return None
     s = stock(bot)
@@ -211,6 +217,9 @@ def hourly_ammo(bot):
 def resupply(bot):
     """Buys from the shop when stock runs low (at decision time; a real player buys before running out of ammo). First LCB-10 (mandatory),
     then rockets and special ammo (by money and thrift) -> what was bought."""
+    from . import smart as SM
+    if SM.enabled(bot):
+        return SM.resupply(bot)
     if not bot.permission.get('shop', True):
         return {}
     s = stock(bot)

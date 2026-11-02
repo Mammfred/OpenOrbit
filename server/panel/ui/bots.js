@@ -137,7 +137,7 @@ async function btAssign(p, did) {
 function btWizard() {
   const r = BT.entries;
   const w = { name: '', description: '', world: (r.worlds.find(d => !r.entries.some(p => p.world === d.id)) || r.worlds[0] || {}).id || null, mode: 'normal',
-    progression: 'progressive', count: 80, lang: 'mixed', name_lang: 'mixed', name_source: 'production', company_distribution: [1, 1, 1], special: '', settings: { jumpstart_hours: 60, simple_power: 1, simple_friendly: 0.5,
+    progression: 'progressive', count: 80, lang: 'mixed', name_lang: 'mixed', name_source: 'production', company_distribution: [1, 1, 1], special: '', settings: { jumpstart_hours: 60, smart: true, top: false, top_percent: 10, simple_power: 1, simple_friendly: 0.5,
       simple_maps: { 'X-1': 2, 'X-2': 2, 'X-3': 2, 'X-4': 2, '4-X': 3, 'X-5': 1, 'X-6': 1, 'X-7': 1, 'X-8': 1, '4-5': 2 } } };
   let step = 0;
   const body = h('div', { class: 'stack', style: { gap: '14px' } });
@@ -244,6 +244,10 @@ function btStep3(w, render) {
         ? T('Everyone starts at level 1 as at the beginning of the game, with the Phoenix at their own base, and develops like a real player.')
         : T('The roster starts with a realistic distribution: many beginners, many mid-level, few strong players. Equipment, money and levels are consistent.'))),
     w.progression === 'jumpstart' ? field(T('Average play time (hours)'), btSlider(w.settings.jumpstart_hours, v => { w.settings.jumpstart_hours = v; }, { min: 5, max: 500, step: 5 })) : null,
+    field(T('Top bots from your save'), btKey(w.settings.top === true, v => { w.settings.top = v; render(); }),
+      h('div', { class: 'small muted' }, T('When on, the top slice of the roster is built from the ship, lasers, generators, drones and level in your save. When off, everyone is generated as before. Applied when the pack is created or the roster is regenerated; later ship changes do not follow.'))),
+    w.settings.top ? field(T('Top slice (%)'), btSlider(w.settings.top_percent || 10, v => { w.settings.top_percent = v; }, { min: 1, max: 40, step: 1, fmt: v => '%' + v }),
+      h('div', { class: 'small muted' }, T('This share of the roster is built close to you. Most match you, a few are a step ahead, a few a step behind. The rest do not change.'))) : null,
     field(T('Name language'), btPickLang(w.name_lang, v => { w.name_lang = v; }, T('Mixed')),
       h('div', { class: 'small muted' }, T("The bots' usernames look like those of players of this language."))),
     field(T('Name source'), btNameSource(w.name_source, v => { w.name_source = v; }),
@@ -357,7 +361,11 @@ function btGeneral(d) {
       d.mode !== 'simple' ? btRow(T('Progress'), d.progression === 'jumpstart' ? T('The roster starts with a realistic distribution (on first launch).') : T('Everyone starts at level 1 at their own base.'),
         btSeg([['progressive', 'Progressive'], ['jumpstart', 'Jumpstart']], d.progression, v => btPatch({ progression: v }))) : null,
       d.mode !== 'simple' && d.progression === 'jumpstart' ? btRow(T('Average play time (hours)'), T('The middle of the Jumpstart distribution: a few bots start at multiples of it, most start below.'),
-        btNumber(a.jumpstart_hours, v => btSetting('jumpstart_hours', v), { min: 1, max: 2000 })) : null),
+        btNumber(a.jumpstart_hours, v => btSetting('jumpstart_hours', v), { min: 1, max: 2000 })) : null,
+      d.mode !== 'simple' ? btRow(T('Top bots from your save'), T('When on, the top slice of the roster is built from the ship, lasers, generators, drones and level in your save. When off, everyone is generated as before. Applied when the pack is created or the roster is regenerated; later ship changes do not follow.'),
+        btKey(a.top === true, v => { a.top = v; btSetting('top', v); const area = document.getElementById('bt-area'); if (area) btFill(area, btGeneral(d)); })) : null,
+      d.mode !== 'simple' && a.top === true ? btRow(T('Top slice (%)'), T('This share of the roster is built close to you. Most match you, a few are a step ahead, a few a step behind. The rest do not change.'),
+        btSlider(a.top_percent || 10, v => btSetting('top_percent', v), { min: 1, max: 40, step: 1, fmt: v => '%' + v })) : null),
     d.mode !== 'simple' ? h('div', { class: 'card' }, h('h2', null, icon('clock'), T('Time and progress')),
       btRow(T('Progression speed'), T('Multiplier of gains: 1 is the pace of a real player.'), btSlider(a.speed, v => btSetting('speed', v), { min: 0.1, max: 10, step: 0.1, fmt: v => '×' + v.toFixed(1) })),
       btRow(T('Tendency to be online'), T("Bots' desire to be online according to their play hours; the higher it is, the more bots at once."),
@@ -496,6 +504,8 @@ function btTraitSummary(o) {
 function btBehavior(d) {
   const a = d.settings;
   return h('div', { class: 'card' }, h('h2', null, icon('target'), T('Behavior')),
+    btRow(T('Smarter play'), T('On: bots pick the map and ammo by net uridium, buy Iris and lasers before hoarding, and fight by the situation. Off: the old behavior.'),
+      btKey(a.smart !== false, v => btSetting('smart', v))),
     btRow(T('Minimum level for PvP'), T("Bots below this level don't go PvP hunting."), btNumber(a.pvp_level, v => btSetting('pvp_level', v), { min: 1, max: 32 })),
     btRow(T("Other companies' maps"), T("Bots can enter enemy companies' maps."), btKey(a.foreign_map, v => btSetting('foreign_map', v))),
     btRow(T('Most shown as ships on your map'), T('At most this many of the bots on your map appear as ships; the others play in the background (performance).'),

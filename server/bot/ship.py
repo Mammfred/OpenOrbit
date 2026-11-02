@@ -459,12 +459,14 @@ def player_died(w, n):
     n.target = None
 
 
-def bot_damage(w, t, dmg, source_id, now, killer_bot=None, npc=None):
-    """The bot ship took damage (from an alien or another bot): the shield absorbs, if HP runs out the bot dies."""
+def bot_damage(w, t, dmg, source_id, now, killer_bot=None, npc=None, absorb=None):
+    """The bot ship took damage (from an alien or another bot): the shield absorbs, if HP runs out the bot dies.
+    absorb: shield-only ammo such as SAB passes 1.0."""
     from . import active_items as AC
     if not t.alive or AC.is_protected(t, now):
-        return
-    absorb = t.bot.value()['absorb']
+        return 0
+    if absorb is None:
+        absorb = t.bot.value()['absorb']
     to_shield = min(int(t.shield), int(dmg * absorb))
     t.shield -= to_shield
     t.hp = max(0, t.hp - (dmg - to_shield))
@@ -478,6 +480,7 @@ def bot_damage(w, t, dmg, source_id, now, killer_bot=None, npc=None):
     _broadcast(w, msgs, source_id, t.id)
     if t.hp <= 0:
         bot_die(w, t, killer_bot, npc)
+    return to_shield
 
 
 def bot_die(w, t, killer_bot=None, npc=None):
@@ -537,14 +540,26 @@ def kill_npc(w, m, n, now):
 
 # ------------------------------------------------------------------------------------------------------------ fire
 def _ammo(n, target, m, o):
-    """The ammo of this shot from stock (weapons.laser_choice: x2/x3 against a tough alien, RSB/x3 in PvP; chosen once per target, like a real
-    player) and its consumption: as many rounds as lasers -> ammo or None (no rounds, cannot fire)."""
+    """The ammo of this shot from stock (weapons.pick_laser: x2/x3 against a tough alien, x4/RSB in PvP, SAB only to refill its own
+    shield; chosen once per target, and again in PvP when the shields move) and its consumption: as many rounds as lasers -> ammo or None."""
     from . import weapons as WP
+    from . import smart as SM
     b = n.bot
-    if getattr(n, 'ammo_target', (None,))[0] != target or WP.stock(b).get(n.ammo_target[1], 0) <= 0:
-        pvp = o is not None or (m is not None and m.bot is not None)
+    pvp = o is not None or (m is not None and m.bot is not None)
+    again = SM.enabled(b) and pvp          # own shield full: drop SAB and go back to hull ammo
+    if again or getattr(n, 'ammo_target', (None,))[0] != target or WP.stock(b).get(n.ammo_target[1], 0) <= 0:
         ehp = 0 if pvp or m is None else m.d.get('hp', 0) + m.d.get('shield', 0)
-        n.ammo_target = (target, WP.pick_laser(b, ehp, pvp))
+        shield = 0.0
+        if pvp and o is not None:
+            ship = o.p.d.get('ship') or {}
+            mx = ship.get('shieldMax') or 0
+            shield = (ship.get('shield') or 0) / mx if mx else 0.0
+        elif pvp and m is not None and m.bot is not None:
+            cap = m.bot.value()['shield']
+            shield = m.shield / cap if cap else 0.0
+        own_cap = b.value()['shield']
+        own = (n.shield / own_cap) if own_cap else 1.0
+        n.ammo_target = (target, WP.pick_laser(b, ehp, pvp, shield, own))
     ammo = n.ammo_target[1]
     if ammo is None:
         return None
@@ -568,10 +583,9 @@ def _color(b, ammo=None):
 
 
 def _fire(b, pvp=False, ammo=None):
-    y = K.outfit(b.k['gear'], b.shield_share())
-    multiplier = K.ITEMS['laser_ammo'].get(ammo or b.k['gear']['ammunition'], {}).get('multiplier', 1)
-    lab = b.body.lab_shot if b.body is not None and hasattr(b.body, 'lab_shot') else 0.0
-    return int(sum(y['laser']) * multiplier * (1 + lab) * random.uniform(*K.ITEMS['damage_random']))
+    """A salvo -> (hull, shield only). The player's laser_damage path (volley.py)."""
+    from . import volley as VL
+    return VL.shot(b, ammo or b.k['gear'].get('ammunition'), pvp)
 
 
 def fire(w, n, now):
@@ -590,7 +604,6 @@ def fire(w, n, now):
     nx, ny = n.mover.pos(now)
     if math.hypot(pos[0] - nx, pos[1] - ny) > LASER_RANGE:
         return
-    n.next_shot = now + COMBAT_INTERVAL
     target = n.target
     m = w.npcs.get(target)
     o = _player(w, target) if m is None else None
@@ -606,6 +619,8 @@ def fire(w, n, now):
             n.fire = False
             _broadcast(w, [('AttackAbortLaserCommand', {'uid': n.id})], n.id)
         return
+    gap = K.ITEMS['laser_ammo'].get(ammo, {}).get('interval_sec') or COMBAT_INTERVAL
+    n.next_shot = now + max(COMBAT_INTERVAL, gap)        # RSB-75 / RCB-140: 3 s (the player's slow ammo)
     n.fire = True
     rocket(w, n, target, m, o, now)
     salvo(w, n, target, m, o, now)
@@ -617,13 +632,23 @@ def fire(w, n, now):
                                          skilledLaser=False, visualType=0))
     is_hard = o is not None or (m is not None and (m.bot is not None or (m.d.get('hp', 0) + m.d.get('shield', 0))
                                                / max(1, n.bot.value()['dps']) > WP.HARD_SEC))
-    landed = random.random() < AC.aim(n, WD.COMBAT['laser_hit_chance'], is_hard)      # AIM CPU (Xenomit)
+    from . import volley as VL
+    chance = VL.hit_chance(n.bot)
+    if o is not None:
+        chance *= 1 - max(0.0, min(0.75, o.p.mods().get('evasion', 0)))
+    landed = random.random() < AC.aim(n, chance, is_hard)      # AIM CPU (Xenomit); Electro-Optics raises the hit chance
+    pvp = o is not None or (m is not None and m.bot is not None)
+    hull, shield_only = _fire(n.bot, pvp=pvp, ammo=ammo) if landed else (0, 0)
     if o is not None:
         msgs = [run]
         if landed:
-            dmg = _fire(n.bot, pvp=True, ammo=ammo)
-            AC.leech(n, dmg, n.bot.value()['hp'], now)
-            msgs += o.hurt_hero(dmg, killer=n, cause=0, source_asset=True, now=now)
+            if hull:
+                AC.leech(n, hull, n.bot.value()['hp'], now)
+                msgs += o.hurt_hero(hull, killer=n, cause=0, source_asset=True, now=now)
+            if shield_only:
+                msgs += o.hurt_hero(shield_only, killer=n, cause=0, source_asset=True, now=now, shield_only=True)
+                d = n.bot.value()
+                n.shield = min(d['shield'], n.shield + shield_only)     # SAB: the drained shield goes to the attacker
         else:
             msgs.append(('AttackMissedCommand', dict(attackType=WD.attack_type(1), targetUserId=target, skillColorId=0)))
         o.send(msgs)
@@ -634,13 +659,21 @@ def fire(w, n, now):
     if not landed:
         _broadcast(w, [run, ('AttackMissedCommand', dict(attackType=WD.attack_type(1), targetUserId=target, skillColorId=0))], n.id, target)
         return
-    dmg = _fire(n.bot, pvp=m.bot is not None, ammo=ammo)
-    AC.leech(n, dmg, n.bot.value()['hp'], now)
+    if hull:
+        AC.leech(n, hull, n.bot.value()['hp'], now)
     if m.bot is not None:
         _broadcast(w, [run], n.id, target)
-        bot_damage(w, m, dmg, n.id, now, killer_bot=n.bot)
+        if hull:
+            bot_damage(w, m, hull, n.id, now, killer_bot=n.bot)
+        if shield_only:
+            drained = bot_damage(w, m, shield_only, n.id, now, killer_bot=n.bot, absorb=1.0)
+            d = n.bot.value()
+            n.shield = min(d['shield'], n.shield + drained)
         return
-    hit_npc(w, n, m, dmg, now, 1, [run], ammo=ammo)
+    if shield_only and not hull:
+        d = n.bot.value()
+        n.shield = min(d['shield'], n.shield + shield_only)
+    hit_npc(w, n, m, hull or shield_only, now, 1, [run], ammo=ammo, shield=not hull and bool(shield_only))
 
 
 def salvo(w, n, target, m, o, now):
@@ -663,7 +696,8 @@ def salvo(w, n, target, m, o, now):
         return
     n.salvo_ready = now + mid
     r = TECH.LAUNCHER_AMMO[fr]
-    dmg = int(r.get('pvp_damage' if pvp else 'damage', r['damage']))
+    from . import volley as VL
+    dmg = int(r.get('pvp_damage' if pvp else 'damage', r['damage']) * VL.rocket_factor(b))
     for i in range(capacity):
         def at(i=i):
             t = time.time()
@@ -764,8 +798,9 @@ def rocket(w, n, target, m, o, now):
     if not landed:
         return
     from . import lab as LB
+    from . import volley as VL
     dmg = int(r.get('pvp_damage' if (o is not None or (m is not None and m.bot is not None)) else 'damage', r['damage'])
-              * random.uniform(0.85, 1.0) * (1 + LB.bonus(b, LB.ROCKET)))
+              * random.uniform(0.85, 1.0) * (1 + LB.bonus(b, LB.ROCKET)) * VL.rocket_factor(b))
     LB.spend(b, LB.ROCKET, 1)
 
     def hit():
@@ -993,11 +1028,24 @@ def think(w, n, now):
         return
     ratio = (n.hp + n.shield) / max(1, d['hp'] + d['shield'])
     attackers = [u for u, t in n.attacker.items() if now - t < 6]
+    from . import loadout_switch as LS
+    from . import smart as SM
+    if LS.apply(w, n, now, ratio, attackers):
+        d = b.value()
+        ratio = (n.hp + n.shield) / max(1, d['hp'] + d['shield'])
     from . import active_items as AC
     if AC.combat(w, n, now, d, ratio, attackers):         # Insta-Shield, Backup Shields, Battle Repair, Smart Bomb, Energy Leech
         ratio = (n.hp + n.shield) / max(1, d['hp'] + d['shield'])
+    if SM.enabled(b):
+        SM.in_fight(w, n, now, ratio, attackers)
+        ratio = (n.hp + n.shield) / max(1, d['hp'] + d['shield'])
     # 1) danger: HP is low and it is being hit -> flee
     in_gate = is_gate_world(w)
+    npc_hits = [u for u in attackers if u in w.npcs and w.npcs[u].bot is None]
+    player_hits = [u for u in attackers if u not in npc_hits]
+    if (SM.enabled(b) and npc_hits and not player_hits and not in_gate and n.shield <= 0
+            and n.hp / max(1, d['hp']) < 0.4 + 0.18 * (1 - b.o('risk'))):
+        return flee(w, n, now)
     if attackers and ratio < 0.18 + 0.32 * (1 - b.o('risk')) and not in_gate:
         return flee(w, n, now)
     # 2) portal yolunda
@@ -1171,7 +1219,10 @@ def flee(w, n, now):
     b = n.bot
     n.target = None
     nx, ny = n.mover.pos(now)
-    if any(_player(w, u) is not None for u, t in n.attacker.items() if now - t < 6):
+    from . import smart as SM
+    if SM.enabled(b):
+        SM.escape_items(w, n, now)
+    elif any(_player(w, u) is not None for u, t in n.attacker.items() if now - t < 6):
         from . import active_items as AC
         AC.emp(w, n, now)                                # the locked player's selection is dropped
         if b.o('risk') < 0.6:

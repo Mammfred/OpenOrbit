@@ -28,13 +28,21 @@ REPAIR_RATE = 0.012        # share of HP+shield regenerated per second outside c
 AMMO = ('ammunition_laser_lcb-10', 'ammunition_laser_mcb-25', 'ammunition_laser_mcb-50')
 
 _price = None
+_stamp = None
+
+
+def _shop_stamp():
+    """Changes when the World Editor lists or unlists an item, so prices() is not stuck on the first read."""
+    import shop as SHP
+    return tuple(sorted((loot, w.get('on_sale'), w.get('price'), w.get('currency')) for loot, w in SHP.WORLD_SHOP.items()))
 
 
 def prices():
     """lootId -> ('C' | 'U', price): the shop's standard catalog, including the World Editor's price and removal from sale."""
-    global _price
-    if _price is None:
-        import shop as SHP
+    global _price, _stamp
+    import shop as SHP
+    stamp = _shop_stamp()
+    if _price is None or stamp != _stamp:
         p = PTH.template('responses.json') if 'responses.json' in PTH.TEMPLATES else os.path.join(HERE, 'data', 'responses.json')
         y = {}
         if p and os.path.exists(p):
@@ -49,6 +57,7 @@ def prices():
         for loot, v in ITEMS['drones'].items():
             out[loot] = ('C' if v['currency'] == 'credits' else 'U', v['prices'][0])
         _price = out
+        _stamp = stamp
     return _price
 
 
