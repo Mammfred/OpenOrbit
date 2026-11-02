@@ -204,6 +204,8 @@ class Profile:
         self.lock = threading.Lock()
         self.dirty = False
         self.ach = lambda kind, **kw: []      # achievement events (achievement.py; the session binds it). Not called while holding the profile lock
+        import uridium_rate as UR
+        self.uridium_rate = UR.Meter()        # net uridium per hour (uridium_rate.py); the session binds the price
         self.hint = lambda kind: []           # hint window once (tips.py; the session binds it) -> messages
         self.window_hooks = {}                # visibility of a menu item (event_window_visible; the session binds it)
         self.seed = seed or {}
@@ -563,6 +565,9 @@ class Profile:
             RT.money(self, 'uridium', uridium, reason, detail, count)
         if uridium > 0:
             BANK.accrue(self, uridium, reason)       # Uridium Bank: the same amount of uridium earned accumulates (bank.py)
+        import uridium_rate as UR
+        if self.uridium_rate is not None and UR.income_counts(reason, uridium):
+            self.uridium_rate.earn(uridium)          # net uridium per hour: gross income (bank withdrawals and refunds excluded)
         if reason != 'auction_bookMoneyBack':      # an auction refund is not income (the achievement counter was inflated by bids/refunds)
             self.ach('gain', ep=ep, honor=honor, credits=credits, uridium=uridium)
         if tot['leveled_up']:
@@ -657,6 +662,9 @@ class Profile:
         if event:
             # Quests/Pass count what would have been used, even with infinite ammo
             self.ach('ammo', loot=loot_id, count=n)          # Pass quests: spend ammo (quest_tracker.py)
+            import uridium_rate as UR
+            if self.uridium_rate is not None and UR.counts(loot_id):
+                self.uridium_rate.fired(loot_id, n)          # net uridium per hour: ammo fired (also with infinite ammo)
         return have - used
 
     def item_id(self, loot_id):

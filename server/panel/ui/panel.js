@@ -512,6 +512,41 @@ function meter(label, v, max, cls) {
   return h('div', { class: 'meter ' + (cls || '') }, h('div', { class: 'row between small' }, h('span', { class: 'muted' }, label), h('b', null, fmtN(v) + ' / ' + fmtN(max))),
     h('div', { class: 'meter-bar' }, h('span', { style: { width: pct + '%' } })));
 }
+function fmtU(n) {
+  if (n == null || n === '') return '—';
+  const x = Number(n);
+  if (!isFinite(x)) return '—';
+  const r = Math.round(x * 10) / 10;
+  if (Number.isInteger(r)) return fmtN(r);
+  return r.toLocaleString(LOC(), { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+}
+function yieldChip(c) {
+  const parts = [];
+  if (c.uridium) parts.push(fmtU(c.uridium) + ' U');
+  if (c.credits) parts.push(fmtU(c.credits) + ' C');
+  const cost = parts.length ? parts.join(' + ') : (c.unknown ? T('not in the shop') : '0');
+  return h('span', { class: 'chip', title: c.loot || '' }, h('b', null, c.name || ''), '×' + fmtN(c.count), cost);
+}
+function yieldSection(v) {
+  if (!v || !v.open) return h('p', { class: 'desc', style: { margin: '14px 0 0' } },
+    T('Net uridium builds up here once the game is open: uridium you earn, minus the shop price of the ammo you fire.'));
+  const s = v.hourly || {};
+  const box = (name, value, cls, tip) => h('div', { class: 'stat', title: tip || '' },
+    h('div', { class: 'k' }, name), h('div', { class: 'v ' + cls }, value == null ? '—' : fmtU(value)));
+  const notes = [T('This session {0}: {1} U earned, ammo {2} U and {3} C.', fmtDur(v.seconds), fmtU(v.uridium), fmtU(v.ammo_uridium), fmtU(v.ammo_credits)),
+    T('Ammo bought with credits (such as LCB-10) is not taken out of the uridium.')];
+  if (!v.running) notes.push(T('Session ended, the counter stopped.'));
+  else if ((v.seconds || 0) < 60) notes.push(T('First minute: the hourly number is still settling.'));
+  const chips = (v.ammo || []).slice(0, 10).map(yieldChip);
+  return h('div', { class: 'live-yield' },
+    h('div', { class: 'stats' },
+      box(T('Net uridium/hour'), s.net_uridium, 'net', T('Uridium you earn, minus the shop price of the ammo you fire, as an hourly rate.')),
+      box(T('Gross uridium/hour'), s.uridium, 'ur', ''),
+      box(T('Ammo U/hour'), s.ammo_uridium, 'ammo', ''),
+      box(T('Ammo C/hour'), s.ammo_credits, 'cr', '')),
+    chips.length ? h('div', { class: 'chips', style: { marginTop: '10px' } }, chips) : null,
+    h('p', { class: 'note' }, notes.join(' ')));
+}
 function liveCard() {
   const r = S.live;
   const head = h('h2', null, icon('zap'), T('Live status'));
@@ -530,7 +565,8 @@ function liveCard() {
     h('div', { class: 'live-sub' }, h('div', { class: 'stats', style: { marginTop: 0 } },
       [[T('Level'), p.level, 'lv'], [T('Credits'), p.credits, 'cr'], [T('Uridium'), p.uridium, 'ur'], [T('Honor'), p.honor, 'hn']].map(([a, v, c]) =>
         h('div', { class: 'stat' }, h('div', { class: 'k' }, a), h('div', { class: 'v ' + c }, fmtN(v))))),
-      d.event_names && d.event_names.length ? h('div', { class: 'chips', style: { marginTop: '10px' } }, d.event_names.map(n => h('span', { class: 'chip' }, n))) : null));
+      d.event_names && d.event_names.length ? h('div', { class: 'chips', style: { marginTop: '10px' } }, d.event_names.map(n => h('span', { class: 'chip' }, n))) : null),
+    yieldSection(d.uridium_rate));
 }
 
 async function switchSaveMenu(anchor) {

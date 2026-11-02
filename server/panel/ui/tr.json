@@ -2879,5 +2879,16 @@
 "{0}d {1}h": "{0} g {1} sa",
 "{0}h {1}m": "{0} sa {1} dk",
 "{1} min left for {0}.": "{0} için {1} dk kaldı.",
-"★ rolled more often in the game": "★ oyunda daha sık çıkanlar"
+"★ rolled more often in the game": "★ oyunda daha sık çıkanlar",
+"Net uridium builds up here once the game is open: uridium you earn, minus the shop price of the ammo you fire.": "Net uridyum oyun açılınca burada birikir: kazanılan uridyum, eksi ateşlenen merminin mağaza fiyatı.",
+"not in the shop": "mağazada yok",
+"This session {0}: {1} U earned, ammo {2} U and {3} C.": "Bu oturum {0}: {1} U kazanç, mermi {2} U ve {3} C.",
+"Ammo bought with credits (such as LCB-10) is not taken out of the uridium.": "Kredili mermi (LCB-10 gibi) uridyumdan düşülmez.",
+"Session ended, the counter stopped.": "Oturum bitti, sayaç durdu.",
+"First minute: the hourly number is still settling.": "İlk dakika: saatlik sayı henüz oturmadı.",
+"Net uridium/hour": "Net uridyum/saat",
+"Uridium you earn, minus the shop price of the ammo you fire, as an hourly rate.": "Kazanılan uridyum, eksi ateşlenen merminin mağaza fiyatı, saate vurulmuş.",
+"Gross uridium/hour": "Brüt uridyum/saat",
+"Ammo U/hour": "Cephane U/saat",
+"Ammo C/hour": "Cephane C/saat"
 }

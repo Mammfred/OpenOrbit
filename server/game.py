@@ -354,6 +354,7 @@ class Session:
         self.guest = None          # the guest's record on the friend server (multiplayer.Guest); None for the server's own player
         self.local = None            # the extra player of the multi-client (multiplayer.LocalPlayer)
         self.client_pid = None      # the connecting client's process (which session the payment button belongs to: payment.connecting_pid)
+        self.uridium_generation = None      # generation of the net-uridium meter on this connection (uridium_rate.py)
         self.queue = CO.SendQueue(c) if queue else None     # send queue on the friend server: so a slow network does not hold the world lock
         if not wait:
             self.bind(profile or PROFILE)
@@ -366,6 +367,8 @@ class Session:
             CURRENT = self           # the control channel, live state and payment button watch the session of the server's own player
         SESSIONS.add(self)
         self.shop = Shop(self.profile, TEMPLATE.replies, log)
+        if getattr(self.profile, 'uridium_rate', None) is not None:
+            self.uridium_generation = self.profile.uridium_rate.bind(self.shop.buy_price)   # this connection's net uridium per hour
         self.quest = Quests(self.profile, log)
         self.quest.grant = self.quest_reward
         self.quest.send = lambda m: self.send(m, 'quest timer')
@@ -483,6 +486,18 @@ class Session:
         except OSError:
             pass
         self.close()
+
+    def _close_uridium(self):
+        """When the connection ends the net-uridium meter freezes and one line stays in the log (does nothing if a new connection already replaced it)."""
+        meter = getattr(self.profile, 'uridium_rate', None) if self.profile is not None else None
+        generation = self.uridium_generation
+        self.uridium_generation = None
+        if meter is None or generation is None:
+            return
+        import uridium_rate as UR
+        summary = meter.stop(generation)
+        if summary and (summary.get('uridium') or summary.get('shots')):
+            log('   ' + UR.log_line(summary))
 
     def close(self):
         """Close the connection (after what was sent has gone): the client's reading ends, the session closes (run)."""
@@ -1361,6 +1376,7 @@ class Session:
             self.world.stop()
         if self.profile is not None:
             self.play_time()
+            self._close_uridium()
             save_profile(self.profile)
             if not any(s is not self and s.profile is self.profile for s in list(SESSIONS)):
                 CT.forget(self.profile.user_id)              # at the next login the contact list is sent from scratch
@@ -1516,12 +1532,14 @@ def stop_gracefully():
     try:
         if CURRENT is not None:
             CURRENT.play_time()
+            CURRENT._close_uridium()
         PROFILE.save(force=True)
-        BOT.close()                       # bot paketinin durumu
+        BOT.close()                       # the bot pack's state
         if CO.is_open():                     # the guests' final state is given to their panels (to pending polls), the extra players' to their slots
             for s in list(SESSIONS):
                 if s.guest is not None or s.local is not None:
                     s.play_time()
+                    s._close_uridium()
             for y in CO.local_players():
                 save_profile(y.profile)
             CO.shutdown()

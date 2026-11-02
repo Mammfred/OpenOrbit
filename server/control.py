@@ -8,7 +8,7 @@ For driving the server and seeing what the client sends in a live trial (client-
 - send:   sends the client a command directly ([name, fields]) or an old text protocol line ("0|A|STM|…").
 - py:     Python in the server process; namespace: S session, W world, P profile, G game module and setup helpers (currency, give,
           phase_out, alien, nearby, clean_up, repair). The value of the last expression or `_` is returned.
-- state:  connection, map, position, ship, money, number of aliens/boxes in the world, last message sequence.
+- state:  connection, map, position, ship, money, net uridium per hour (uridium_rate), number of aliens/boxes in the world, last message sequence.
 - fields: a message's field layout (protocol table).
 It is not opened in normal play (it is opened with the panel's Developer setting); it binds only to the local address.
 """
@@ -120,6 +120,9 @@ class Control:
                'ship': {k: p['ship'].get(k) for k in ('typeId', 'hitPoints', 'hitMax', 'shield', 'shieldMax', 'cargoSpace')},
                'pilot': {k: p['pilot'].get(k) for k in ('userName', 'level', 'credits', 'uridium', 'ep', 'honourPoints',
                                                         'factionId', 'clanTag')}}
+        meter = getattr(G.PROFILE, 'uridium_rate', None)
+        if meter is not None:
+            out['uridium_rate'] = meter.summary()               # net uridium per hour (gross, ammo, by type)
         if w:
             with w.lock:
                 hx, hy = w.hero_pos()
