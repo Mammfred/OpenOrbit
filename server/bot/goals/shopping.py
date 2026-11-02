@@ -115,10 +115,17 @@ def income(bot):
 def candidate(bot):
     """-> (what to buy now (power gain, currency, price, loot) or None, the goal being saved for or None).
 
-    Goal-driven like a real player: the most efficient upgrade it can reach soon (with 1-2.5 hours of income, by thriftiness) is the goal;
-    if it can afford it, it buys it. If not, it only makes a small purchase that is nearly as efficient as the goal (at least 70%),
+    Smarter play uses its own order (repair, laser, Iris, generators, formation, design, ship).
+    Otherwise it is goal-driven like a real player: the most efficient upgrade it can reach soon (with 1-2.5 hours of income, by thriftiness)
+    is the goal; if it can afford it, it buys it. If not, it only makes a small purchase that is nearly as efficient as the goal (at least 70%),
     otherwise it saves. It used to immediately buy the most efficient thing it could afford: while saving for the SLL-01 (50,000 C) it kept
-    buying 2,000-8,000 C speed generators and MP-1 in turn and replacing one with another on a single-slot Phoenix (packet analysis 2026-10-29)."""
+    buying 2,000-8,000 C speed generators and MP-1 in turn and replacing one with another on a single-slot Phoenix (packet analysis 2026-10-29).
+    """
+    from .. import smart as SM
+    if SM.enabled(bot):
+        SM.prepare_purchase(bot)
+        return SM.purchase(bot)
+
     all_candidates = candidates(bot)
     if not all_candidates:
         return None, None
@@ -180,6 +187,8 @@ class Shopping(Goal):
         # credits bought 8 items in an hour and stood idle without spending 80% of its money (player report 2026-10-31)
         c = b.shopping[0]
         for _ in range(MAX_TRIP_ITEMS):
+            if c is None:
+                break
             increase, currency, price, loot = c
             if not bot.pay(currency, price):
                 break

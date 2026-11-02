@@ -60,6 +60,9 @@ SETTINGS = {
     'llm_agent': ('bool', None, None, True),            # tool loop on a strong provider (bot/agent.py)
     'llm_agent_steps': ('full', 1, 10, 3),
     'llm_hourly': ('full', 0, 20000, 200),             # hourly limit for all language model requests (0: unlimited)
+    'smart': ('bool', None, None, True),             # grinding, spending, PvP (bot/smart.py); off is the old behavior
+    'top': ('bool', None, None, False),              # the top slice follows the player's save (bot/top_bots.py); off is the old generation
+    'top_percent': ('full', 1, 40, 10),              # that slice's share of the roster, percent
 }
 PERMISSIONS = ('shop', 'quest', 'pvp', 'attack_player', 'chat', 'clan', 'clan_found', 'friend', 'group', 'auction', 'assist', 'box_stealing', 'cargo', 'rocket', 'custom_ammunition', 'extras', 'mine', 'lab', 'skylab', 'technology', 'booty', 'assembly', 'gate', 'event', 'modes', 'clan_diplomacy', 'clan_order', 'gate_filler', 'clan_cbs')
 SIMPLE_CLASSES = ('X-1', 'X-2', 'X-3', 'X-4', '4-X', 'X-5', 'X-6', 'X-7', 'X-8', '4-5')
@@ -296,6 +299,26 @@ def _count(d):
     return None
 
 
+def apply_top(d):
+    """Mark the top slice from the active save. Off, or no readable save and no stored snapshot: the marks are cleared."""
+    from bot import top_bots as TP
+    roster = d.get('roster') or []
+    settings = d.setdefault('settings', {})
+    if not settings.get('top'):
+        for x in roster:
+            x.pop('top', None)
+        d.pop('top_source', None)
+        return
+    source = TP.save_source()
+    if source:
+        d['top_source'] = source
+    elif not d.get('top_source'):
+        for x in roster:
+            x.pop('top', None)
+        return
+    TP.mark(roster, settings.get('top_percent', 10), d.get('seed', 1))
+
+
 # ------------------------------------------------------------------ storage
 def create(name, description='', world=None, mode='normal', progression='progressive', count=60, lang='mixed', company_distribution=(1, 1, 1),
             settings=None, players=(), name_lang_=None, special='', name_source=None):
@@ -315,6 +338,7 @@ def create(name, description='', world=None, mode='normal', progression='progres
         summary = _custom_lang(d, parse_custom(special, players))
         n = max(len(summary), _count(d) or max(COUNT_MIN, min(COUNT_MAX, int(count or 60))))
         d['roster'] = generate_roster(d['seed'], n, d['company_distribution'], d['lang'], players, d['name_lang'], summary, d)
+        apply_top(d)
         _save(pid, d)
     if world:
         assign(pid, world)
@@ -340,6 +364,7 @@ def update(pid, name=None, description=None, mode=None, progression=None, settin
         n = _count(d)
         if n is not None and (n != len(d['roster']) or old_mode != d['mode']):
             d['roster'] = _resize(d, n)
+        apply_top(d)
         _save(pid, d)
 
 
@@ -394,6 +419,7 @@ def roster(pid, count=None, lang=None, company_distribution=None, regenerate=Fal
                 for i, x in enumerate(extra, 1):
                     x['no'] = last + i
                 d['roster'] += extra
+        apply_top(d)
         _save(pid, d)
     NL.add([{'type': 'delete', 'name': a} for a in outgoing])
     if regenerate:

@@ -19,7 +19,8 @@ from urllib.request import Request, urlopen
 
 from lang import t as _
 
-REPO = 'kaanumay/OpenOrbit'
+# Optional fork: OPENORBIT_REPO (or the older OPENORBIT_DEPO). The default stays the upstream repo.
+REPO = os.environ.get('OPENORBIT_REPO') or os.environ.get('OPENORBIT_DEPO') or 'kaanumay/OpenOrbit'
 BRANCH = 'main'
 API = 'https://api.github.com'
 VERSION_FILE = os.path.join('server', 'surum.txt')        # name kept (the old updater reads it); "$Format:%H %cI$" -> "<commit> <date>" in GitHub's archive

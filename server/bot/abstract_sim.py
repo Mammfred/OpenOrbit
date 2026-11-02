@@ -233,8 +233,11 @@ def _poisson(r, lam):
 # ------------------------------------------------------------------------------------------------------------ bot-bot PvP
 def encounter(a, b, y, now=None):
     """Two enemy bots met on the same map (manager.pvp_tick chooses): the attacker attacks, the other fights or flees; the result depends
-    on the power ratio, luck and personality. -> ('kazandi', winner, loser) | ('kacti', fleeing, chasing) | None"""
+    on the power ratio, luck and personality. -> ('won', winner, loser) | ('fled', fleeing, chasing) | None"""
     now = now or time.time()
+    from . import smart as SM
+    if SM.enabled(a) or SM.enabled(b):
+        return SM.encounter(a, b, y, now)
     from . import extras as EX
     from . import technology as TECH
     ga = max(0.5, a.value()['power']) * EX.pvp_factor(a) * TECH.pvp_factor(a)

@@ -56,6 +56,9 @@ DEFAULTS = {                 # the pack's settings (panel/bots.py validates the 
     'prime_end': 23,
     'prime_pvp': 2.0,          # multiplier for PvP desire in prime time (1: no difference)
     'big_battle': True,       # in prime time the companies' PvP bots gather on a shared front map
+    'smart': True,             # grinding / spending / PvP (bot/smart.py). Off: the old behavior
+    'top': False,              # the top slice follows the player's save (bot/top_bots.py). Off: the old generation
+    'top_percent': 10,
     'permissions': {'shop': True, 'quest': True, 'pvp': True, 'chat': True, 'clan': True, 'clan_found': True, 'friend': True,
                 'group': True, 'auction': True, 'attack_player': True, 'assist': True, 'box_stealing': True, 'cargo': True, 'rocket': True, 'custom_ammunition': True, 'extras': True, 'mine': True, 'lab': True, 'skylab': True, 'technology': True, 'booty': True, 'assembly': True, 'gate': True, 'event': True, 'modes': True, 'clan_diplomacy': True, 'clan_order': True, 'gate_filler': True},
 }
@@ -93,6 +96,13 @@ class Manager(ChatEngine):
     def permission(self, name):
         return bool(self.settings['permissions'].get(name, True))
 
+    def bind_smart(self, b):
+        """Pack setting 'smart' (panel: Behavior). When it changes, the power cache is cleared (formation share)."""
+        new = bool(self.setting('smart', True))
+        if getattr(b, 'smart', None) is not new:
+            b.smart = new
+            b.loadout_changed()
+
     def speed(self, bot):
         """The bot's progress speed: the pack's speed x its company's strength."""
         fg = self.settings.get('company_power') or [1, 1, 1]
@@ -120,12 +130,17 @@ class Manager(ChatEngine):
             k = old.get(str(roster_row['no']))
             if k is None:
                 k = dict(no=roster_row['no'], name=roster_row['name'], company=roster_row['company'], personality=roster_row['personality'], registered=not ordered)
+                if roster_row.get('top') and self.package.get('top_source'):
+                    from . import top_bots as TP
+                    TP.apply(k, self.package['top_source'], roster_row['top'])
                 new_.append(k)
             else:
                 k.update(name=roster_row['name'], company=roster_row['company'], personality=roster_row['personality'])      # the name may have been changed in the panel
             if self.mode == 'advanced' and not multilingual:
                 k['personality'] = dict(k['personality'], lang='en')      # the built-in language model is English only (llm.py; free with other providers)
             b = Bot(k)
+            from . import skill_build as SK
+            SK.spend(b)                              # level points and a copied tree: before it reaches a map
             b.permission = self.settings['permissions']
             b.rude = int(self.setting('rude_chat', 1))       # rough chat level (llm.style, chat_engine)
             b.hour = lambda: self.now
@@ -138,9 +153,11 @@ class Manager(ChatEngine):
         if self.mode == 'simple':
             from . import simple
             simple.prepare(self, now)
+            from . import top_bots as TP
+            TP.on_server(self, force=True)             # on top of the map gear: the top slice follows the save
             return
         if new_ and self.package.get('progression') == 'jumpstart':
-            self.jumpstart([b for b in self.bots if b.k in new_], now)
+            self.jumpstart([b for b in self.bots if b.k in new_ and not b.k.get('top_applied')], now)
         for b in sorted(self.bots, key=lambda b: b.r.random()):
             if not b.saved:
                 self.signup_queue.setdefault(b.company, []).append(b)
@@ -304,6 +321,7 @@ class Manager(ChatEngine):
 
     def bot_tick(self, b, now):
         self.now = now
+        self.bind_smart(b)
         on_run = b.target is not None and b.target.name in ('gate', 'mod') and not b.plan.get('finished')
         if now >= b.session_end and not b.en_route and b.dead_until <= now and not on_run:   # does not leave before a gate/mode run is finished
             if b.body is not None and b.body.alive and not b.__dict__.get('logout_ready'):
@@ -390,6 +408,7 @@ class Manager(ChatEngine):
         self.log('   bots: %d bots started online' % n)
 
     def entry(self, b, now, silent=False):
+        self.bind_smart(b)
         if b.game_map not in K.MAPS:                  # it had exited at a gate (or on a closed map): returns to base
             b.k['map'] = K.ev(b.company)
             b.plan = {}
@@ -509,6 +528,7 @@ class Manager(ChatEngine):
     # ------------------------------------------------------------ fast-forward
     def fast(self, b, seconds, now, step=900.0, pvp=False):
         """Advances the bot as if it had played for the given seconds (jumpstart, catch-up): big steps, decisions per step."""
+        self.bind_smart(b)
         t = now - seconds
         b.online = True
         b.target = None
